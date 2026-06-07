@@ -8,7 +8,7 @@ on:
 jobs:
   assign:
     name: Assign Contributor
-    if: github.event.issue.pull_request == null
+    if: ${{ github.event.issue.pull_request == null && (contains(github.event.comment.body, '/assign') || contains(github.event.comment.body, '@Shiv24angi')) }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -23,39 +23,6 @@ jobs:
             const repo = 'EcoVerse';
             const issue_number = context.issue.number;
             const commenter = context.payload.comment.user.login;
-            const commentBody = context.payload.comment.body;
-
-            const body = commentBody.toLowerCase();
-
-            const shouldAssign =
-              body.includes('/assign') ||
-              body.includes('@shiv24angi');
-
-            if (!shouldAssign) {
-              return;
-            }
-
-            const { data: allIssues } = await github.rest.issues.listForRepo({
-              owner,
-              repo,
-              state: 'open',
-              assignee: commenter,
-            });
-
-            const otherAssignedIssues = allIssues.filter(
-              (i) => i.number !== issue_number
-            );
-
-            if (otherAssignedIssues.length > 0) {
-              const assignedIssue = otherAssignedIssues[0];
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body: `Hey @${commenter}! You are currently assigned to #${assignedIssue.number}. Please resolve that first .`,
-              });
-              return;
-            }
 
             const { data: issue } = await github.rest.issues.get({
               owner,
@@ -79,6 +46,31 @@ jobs:
                 body: `This issue is currently assigned to @${currentAssignee}. Please look for another unassigned issue.`,
               });
 
+              return;
+            }
+
+            const { data: allIssues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              assignee: commenter,
+            });
+
+            const otherAssignedIssues = allIssues.filter(
+              (i) => i.number !== issue_number
+            );
+
+            if (otherAssignedIssues.length >= 3) {
+              const issueList = otherAssignedIssues
+                .slice(0, 3)
+                .map((i) => `#${i.number}`)
+                .join(', ');
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `Hey @${commenter}! Our policy allows a maximum of 3 issues per contributor at a time. You are currently assigned to ${issueList}. Please resolve them first before taking on a new issue.`,
+              });
               return;
             }
 
